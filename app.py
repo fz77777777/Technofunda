@@ -170,7 +170,6 @@ if not df_matrix.empty:
         ind_name = ind_row['industry']
         score = ind_row['Score']
         
-        # Native safe status icons based on scoring velocity
         if score >= 1.5:
             status_badge = f"🟢 #{rank+1} {ind_name.upper()} | Score: {score} [CRITICAL MOMENTUM]"
         elif score >= 0.5:
@@ -182,11 +181,9 @@ if not df_matrix.empty:
             sub_stocks = df_matrix[df_matrix['industry'] == ind_name].copy()
             sub_stocks = sub_stocks.sort_values(by='trending_days', ascending=False)
             
-            # Use safe native dataframes with dynamic conditional formatting
             display_cols = ["name", "ticker", "cap", "last_close", "trending_days"] + valid_dates
             final_display = sub_stocks[display_cols].copy()
             
-            # Dynamic formatting function for native dataframes
             def highlight_spurts(val):
                 if isinstance(val, str) and "%" in val:
                     return 'background-color: #1E8449; color: white; font-weight: bold; text-align: center;'
@@ -194,9 +191,14 @@ if not df_matrix.empty:
                     return 'background-color: #2C3E50; color: #7F8C8D; text-align: center; opacity: 0.5;'
                 return ''
 
-            # Render beautifully using Streamlit's new fully functional native element
+            # Robust Version-Safe Styling Engine Block
+            try:
+                styled_df = final_display.style.map(highlight_spurts, subset=valid_dates)
+            except AttributeError:
+                styled_df = final_display.style.applymap(highlight_spurts, subset=valid_dates)
+
             st.dataframe(
-                final_display.style.applymap(highlight_spurts, subset=valid_dates),
+                styled_df,
                 use_container_width=True,
                 hide_index=True
             )
