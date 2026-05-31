@@ -1,21 +1,11 @@
-import streamlit as st
+   import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 
-# Page config layout set up to widest screen to look exactly like the premium sheets
+# Page config layout set up to widest screen
 st.set_page_config(page_title="Price-Volume Spurts Pro Scanner", layout="wide", initial_sidebar_state="expanded")
-
-# Inject Custom CSS safely for Python 3.14 (Single-line formatting to prevent parser multi-line errors)
-st.markdown("<style>.reportview-container { background: #111216; }</style>", unsafe_html=True)
-st.markdown("<style>.reportview-container .main .block-container { padding-top: 1rem; }</style>", unsafe_html=True)
-st.markdown("<style>.green-strip { background-color: #2ECC71 !important; color: white !important; text-align: center; padding: 6px 4px; font-weight: bold; border-radius: 2px; font-size: 11px; box-shadow: inset 0 0 4px rgba(0,0,0,0.2); min-height: 24px; display: flex; align-items: center; justify-content: center; }</style>", unsafe_html=True)
-st.markdown("<style>.empty-strip { background-color: #2C3E50 !important; color: #7F8C8D !important; text-align: center; padding: 6px 4px; border-radius: 2px; font-size: 11px; min-height: 24px; display: flex; align-items: center; justify-content: center; opacity: 0.25; }</style>", unsafe_html=True)
-st.markdown("<style>.stock-table { width: 100%; border-collapse: separate; border-spacing: 2px 4px; margin: 10px 0; }</style>", unsafe_html=True)
-st.markdown("<style>.stock-table th { background-color: #1A252F; color: #ECF0F1; padding: 10px 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #34495E; }</style>", unsafe_html=True)
-st.markdown("<style>.stock-table td { background-color: #141D26; color: #E5E8E8; padding: 8px; font-size: 12px; vertical-align: middle; }</style>", unsafe_html=True)
-st.markdown("<style>.industry-trigger { font-size: 15px; font-weight: bold; }</style>", unsafe_html=True)
 
 st.title("📈 TechnoFunda Price-Volume Spurts Trending Scanner")
 st.write("India's premium institutional delivery tracking engine. Sorted from high-to-low momentum blocks.")
@@ -80,21 +70,7 @@ def get_nifty_momentum_universe():
         {"ticker": "M&M.NS", "name": "Mahindra & Mahindra", "industry": "Automobiles & EV", "cap": "Large Cap"},
         {"ticker": "MARUTI.NS", "name": "Maruti Suzuki", "industry": "Automobiles & EV", "cap": "Large Cap"},
         {"ticker": "RKFORGE.NS", "name": "Ramkrishna Forgings", "industry": "Automobiles & EV", "cap": "Small Cap"},
-        {"ticker": "OLECTRA.NS", "name": "Olectra Greentech", "industry": "Automobiles & EV", "cap": "Small Cap"},
-        
-        # --- PHARMA & HEALTHCARE ---
-        {"ticker": "SUNPHARMA.NS", "name": "Sun Pharma", "industry": "Pharma & Healthcare", "cap": "Large Cap"},
-        {"ticker": "CIPLA.NS", "name": "Cipla", "industry": "Pharma & Healthcare", "cap": "Large Cap"},
-        {"ticker": "LUPIN.NS", "name": "Lupin", "industry": "Pharma & Healthcare", "cap": "Mid Cap"},
-        {"ticker": "GLENMARK.NS", "name": "Glenmark Pharma", "industry": "Pharma & Healthcare", "cap": "Mid Cap"},
-        {"ticker": "JUBLPHARMA.NS", "name": "Jubilant Pharma", "industry": "Pharma & Healthcare", "cap": "Small Cap"},
-        
-        # --- METALS & MINING ---
-        {"ticker": "TATASTEEL.NS", "name": "Tata Steel", "industry": "Metals & Mining", "cap": "Large Cap"},
-        {"ticker": "JSWSTEEL.NS", "name": "JSW Steel", "industry": "Metals & Mining", "cap": "Large Cap"},
-        {"ticker": "HINDALCO.NS", "name": "Hindalco", "industry": "Metals & Mining", "cap": "Large Cap"},
-        {"ticker": "SAIL.NS", "name": "SAIL", "industry": "Metals & Mining", "cap": "Mid Cap"},
-        {"ticker": "NMDC.NS", "name": "NMDC", "industry": "Metals & Mining", "cap": "Mid Cap"}
+        {"ticker": "OLECTRA.NS", "name": "Olectra Greentech", "industry": "Automobiles & EV", "cap": "Small Cap"}
     ]
     return pd.DataFrame(universe)
 
@@ -105,7 +81,6 @@ def process_institutional_spurts(df_db, lookback_history=45):
     total_days_needed = lookback_history + 40
     start_date = (datetime.now() - timedelta(days=total_days_needed)).strftime('%Y-%m-%d')
     
-    # Vectorized Single Request Batch Download
     data = yf.download(tickers, start=start_date, progress=False)
     if data.empty or 'Volume' not in data.columns or 'Close' not in data.columns:
         return pd.DataFrame(), []
@@ -113,9 +88,8 @@ def process_institutional_spurts(df_db, lookback_history=45):
     volume_df = data['Volume'].ffill().bfill()
     close_df = data['Close'].ffill().bfill()
     
-    # Extract true working dates from yfinance structure
     active_trading_dates = volume_df.index[-lookback_history:]
-    date_strings = [d.strftime('%d\n%b') for d in active_trading_dates]
+    date_strings = [d.strftime('%d %b') for d in active_trading_dates]
     
     stock_matrix = []
     
@@ -127,7 +101,7 @@ def process_institutional_spurts(df_db, lookback_history=45):
             
             for idx in range(-lookback_history, 0):
                 date_obj = volume_df[t].index[idx]
-                date_str = date_obj.strftime('%d\n%b')
+                date_str = date_obj.strftime('%d %b')
                 
                 day_vol = volume_df[t].iloc[idx]
                 pos = volume_df.index.get_loc(date_obj)
@@ -137,12 +111,11 @@ def process_institutional_spurts(df_db, lookback_history=45):
                 price_prev = close_df[t].iloc[idx-1] if (pos-1) >= 0 else price_today
                 day_return = ((price_today - price_prev) / price_prev) * 100
                 
-                # Formula setup matching image visual requirements exactly: Volume > 1.5x AND price return >= 1.0%
                 if historical_avg_20 > 0 and day_vol > (historical_avg_20 * 1.5) and day_return >= 1.0:
-                    spurt_history[date_str] = f"{day_return:+.1f}%|({int(day_vol/historical_avg_20)}x)"
+                    spurt_history[date_str] = f"{day_return:+.1f}% ({int(day_vol/historical_avg_20)}x)"
                     total_trending_days_count += 1
                 else:
-                    spurt_history[date_str] = ""
+                    spurt_history[date_str] = "-"
                     
             base_info = {
                 "ticker": t,
@@ -183,14 +156,12 @@ if not df_matrix.empty:
     if cap_selection != "All Market Stocks":
         df_matrix = df_matrix[df_matrix['cap'] == cap_selection]
         
-    # Aggregate data to score and find top industries automatically
     industry_ranking = df_matrix.groupby('industry').agg(
         Total_Spikes=('trending_days', 'sum'),
         Total_Stocks=('ticker', 'count')
     ).reset_index()
     
     industry_ranking['Score'] = (industry_ranking['Total_Spikes'] / industry_ranking['Total_Stocks']).round(2)
-    # SORTING: Industry with most active spikes sits at the very top
     industry_ranking = industry_ranking.sort_values(by='Score', ascending=False).reset_index(drop=True)
     
     st.subheader(f"🏆 Sorted Industry Lead Matrix ({window_selection})")
@@ -199,62 +170,35 @@ if not df_matrix.empty:
         ind_name = ind_row['industry']
         score = ind_row['Score']
         
+        # Native safe status icons based on scoring velocity
         if score >= 1.5:
-            badge_style = "background-color:#196F3D; color:#2ECC71;"
-            status_text = "🚀 CRITICAL MOMENTUM"
+            status_badge = f"🟢 #{rank+1} {ind_name.upper()} | Score: {score} [CRITICAL MOMENTUM]"
         elif score >= 0.5:
-            badge_style = "background-color:#112233; color:#5DADE2;"
-            status_text = "📈 STEADY ACCUMULATION"
+            status_badge = f"🔵 #{rank+1} {ind_name.upper()} | Score: {score} [STEADY ACCUMULATION]"
         else:
-            badge_style = "background-color:#2C3E50; color:#BDC3C7;"
-            status_text = "💤 ACQUISITION FLATLINE"
+            status_badge = f"⚪ #{rank+1} {ind_name.upper()} | Score: {score} [FLATLINE]"
             
-        header_title_html = f"""
-        <div style='{badge_style} padding:10px; border-radius:4px; font-weight:bold; margin-top:8px;' class='industry-trigger'>
-            #{rank+1} {ind_name.upper()} &nbsp;&nbsp;|&nbsp;&nbsp; Spurt Score: {score} &nbsp;&nbsp;|&nbsp;&nbsp; {status_text}
-        </div>
-        """
-        
-        with st.expander(header_title_html, expanded=(rank == 0)):
+        with st.expander(status_badge, expanded=(rank == 0)):
             sub_stocks = df_matrix[df_matrix['industry'] == ind_name].copy()
-            # SORTING: Inside the industry, stocks are sorted high-to-low based on hits
             sub_stocks = sub_stocks.sort_values(by='trending_days', ascending=False)
             
-            # Form HTML Table to print exact green/gray blocks layout
-            html_table = """
-            <table class='stock-table'>
-                <thead>
-                    <tr>
-                        <th style='text-align:left;'>Company Name</th>
-                        <th style='text-align:left;'>Market Cap</th>
-                        <th style='text-align:left;'>Last Close</th>
-                        <th style='text-align:center;'>Trending Days</th>
-            """
-            for d in valid_dates:
-                html_table += f"<th style='text-align:center; min-width:55px; white-space:pre-wrap;'>{d}</th>"
-            html_table += "</tr></thead><tbody>"
+            # Use safe native dataframes with dynamic conditional formatting
+            display_cols = ["name", "ticker", "cap", "last_close", "trending_days"] + valid_dates
+            final_display = sub_stocks[display_cols].copy()
             
-            for _, s_row in sub_stocks.iterrows():
-                html_table += f"""
-                <tr>
-                    <td style='font-weight:bold; color:#3498DB;'>{s_row['name']}<br><span style='font-size:10px; color:#95A5A6;'>{s_row['ticker']}</span></td>
-                    <td>{s_row['cap']}</td>
-                    <td style='color:#F1C40F; font-weight:bold;'>₹{s_row['last_close']}</td>
-                    <td style='text-align:center; font-weight:bold; color:#2ECC71;'>{s_row['trending_days']} d</td>
-                """
-                
-                for d in valid_dates:
-                    cell_val = s_row[d]
-                    if "|" in cell_val:
-                        parts = cell_val.split("|")
-                        return_pct = parts[0]
-                        multiplier = parts[1]
-                        html_table += f"<td><div class='green-strip'>{return_pct}<br><span style='font-size:9px; font-weight:normal;'>{multiplier}</span></div></td>"
-                    else:
-                        html_table += "<td><div class='empty-strip'>-</div></td>"
-                html_table += "</tr>"
-                
-            html_table += "</tbody></table>"
-            st.markdown(html_table, unsafe_html=True)
+            # Dynamic formatting function for native dataframes
+            def highlight_spurts(val):
+                if isinstance(val, str) and "%" in val:
+                    return 'background-color: #1E8449; color: white; font-weight: bold; text-align: center;'
+                elif val == "-":
+                    return 'background-color: #2C3E50; color: #7F8C8D; text-align: center; opacity: 0.5;'
+                return ''
+
+            # Render beautifully using Streamlit's new fully functional native element
+            st.dataframe(
+                final_display.style.applymap(highlight_spurts, subset=valid_dates),
+                use_container_width=True,
+                hide_index=True
+            )
 else:
     st.info("No active breakout data fetched. Filters change karke try kijiye.")
